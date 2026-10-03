@@ -22,6 +22,7 @@ import { PrWatcher } from './integrations/pr-watcher.js';
 import { PrFilePatches } from './integrations/pr-file-patches.js';
 import { UserPrsWatcher } from './integrations/user-prs-watcher.js';
 import { WorkEngine } from './work/engine.js';
+import { checkPlanDiagram } from './work/plan-diagram.js';
 import { LaunchGovernor } from './work/launch-governor.js';
 import type { JobRecord } from './work/work-types.js';
 import { ensureActionsInstalled, bundledRepoDir } from './setup-actions.js';
@@ -802,6 +803,7 @@ async function main() {
         // No stepId: an orchestrator's plan is refused against the JOB's orchestrator session.
         const refusal = engine.interactiveRefusal(a.jobId as string);
         if (refusal) throw new Error(refusal);
+        await checkPlanDiagram(a.findings as { diagram?: unknown } | undefined);
         engine.onPlanReady(
           a.jobId as string,
           (a.mode as 'initial' | 'replan') ?? 'initial',

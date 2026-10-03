@@ -3,27 +3,29 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-// PWA theme (state/settings.js VALID_THEMES) → d2 theme id per mode. Every d2 light theme has a
-// white background and d2 has only two dark ones, so this matches on the accent's hue, not on the
-// background. 201's fills are saturated blue, so only the blue/cyan-accent themes take it; every
-// other dark mode gets 200, whose grey-mauve sits quietly under any accent.
-const D2_THEMES: Record<string, { light: number; dark: number }> = {
-  halcyon: { light: 0, dark: 201 },     // Neutral Default
-  almanac: { light: 100, dark: 200 },   // Vanilla Nitro Cola
-  terminal: { light: 300, dark: 200 },  // Terminal — mono type over hue
-  nordic: { light: 4, dark: 201 },      // Cool Classics
-  ink: { light: 302, dark: 200 },       // Origami
-  botanical: { light: 104, dark: 200 }, // Everglade Green
-  plasma: { light: 102, dark: 200 },    // Shirley Temple
-  atlas: { light: 105, dark: 200 },     // Buttered Toast
-  library: { light: 103, dark: 200 },   // Earth Tones
+// Every colour slot d2 has, painted from the PWA theme token named beside it (base.css), so a
+// diagram uses exactly the user's palette: text and lines from the text/line ladder, containers and
+// shapes on the elevation surfaces, strokes in the accent. With all 18 slots overridden the d2
+// base theme carries no colour at all — only Terminal (300) still differs, in its mono caps and
+// pattern fill, which is why it's the one theme that picks a base.
+export const D2_SLOTS: Record<string, string> = {
+  N1: 'text', N2: 'text-mute', N3: 'text-dim', N4: 'line', N5: 'line-soft', N6: 'bg-elev', N7: 'bg',
+  B1: 'accent', B2: 'accent', B3: 'bg-elev-2', B4: 'bg-elev-2', B5: 'line-soft', B6: 'bg-elev',
+  AA2: 'accent-2', AA4: 'bg-elev-2', AA5: 'bg-elev', AB4: 'bg-elev-2', AB5: 'bg-elev',
 };
 
-// Unknown names fall back to halcyon, the default theme — the query string is the caller's.
-export function d2ThemeFor(theme: string | null, mode: string | null): number {
-  const t = D2_THEMES[theme ?? ''] ?? D2_THEMES.halcyon!;
-  return mode === 'dark' ? t.dark : t.light;
+export const d2ThemeFor = (theme: string | null): number => (theme === 'terminal' ? 300 : 0);
+
+// The token values come off a query string, so anything but `#rrggbb` leaves that slot to the base.
+export function themeOverrides(token: (name: string) => string | null): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [slot, name] of Object.entries(D2_SLOTS)) {
+    const v = token(name);
+    if (v && /^#[0-9a-f]{6}$/i.test(v)) out[slot] = v;
+  }
+  return out;
 }
+
 const MAX_SOURCE = 20_000;
 const CACHE_MAX = 50;
 
@@ -44,14 +46,14 @@ const cache = new Map<string, Promise<string>>();
 
 // Throws on a refusal, a compile error (message is d2's own, line:col included), or a missing
 // binary (`code === 'ENOENT'` — callers treat that as "no diagrams on this host", not a bad plan).
-// `bg` replaces the theme's canvas colour (N7) so the diagram sits flush on the PWA card instead of
-// on d2's white or near-black slab. It comes off a query string, so anything but `#rrggbb` is
-// ignored. Appended rather than prepended: d2 merges a repeated `vars` map and the last one wins,
-// so the model's own `theme-overrides` can't undo it, and its line numbers in errors stay put.
-export function renderDiagram(src: string, themeId: number, bg?: string | null): Promise<string> {
+// `overrides` (from themeOverrides — validated hex only) are appended rather than prepended: d2
+// merges a repeated `vars` map and the last one wins, so the model's own `theme-overrides` can't
+// undo them, and its line numbers in errors stay put.
+export function renderDiagram(src: string, themeId: number, overrides: Record<string, string> = {}): Promise<string> {
   const refusal = diagramRefusal(src);
   if (refusal) return Promise.reject(new Error(refusal));
-  if (bg && /^#[0-9a-f]{6}$/i.test(bg)) src += `\nvars: {d2-config: {theme-overrides: {N7: "${bg}"}}}\n`;
+  const slots = Object.entries(overrides).map(([k, v]) => `${k}: "${v}"`).join('; ');
+  if (slots) src += `\nvars: {d2-config: {theme-overrides: {${slots}}}}\n`;
   const key = `${themeId}\0${src}`;
   const hit = cache.get(key);
   if (hit) return hit;
@@ -78,7 +80,7 @@ export async function checkPlanDiagram(findings: { diagram?: unknown } | undefin
   if (!findings || findings.diagram === undefined) return;
   if (typeof findings.diagram !== 'string' || !findings.diagram.trim()) { delete findings.diagram; return; }
   try {
-    await renderDiagram(findings.diagram, d2ThemeFor(null, 'light'));
+    await renderDiagram(findings.diagram, d2ThemeFor(null));
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
       console.warn('[plan-diagram] d2 is not installed; dropping findings.diagram (brew install d2)');

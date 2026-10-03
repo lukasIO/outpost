@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
-import { checkPlanDiagram, d2ThemeFor, diagramRefusal, renderDiagram } from '../../src/work/plan-diagram.js';
+import { checkPlanDiagram, D2_SLOTS, d2ThemeFor, diagramRefusal, renderDiagram, themeOverrides } from '../../src/work/plan-diagram.js';
+// @ts-expect-error PWA modules are plain JS; tests import them at runtime.
+import { DIAGRAM_TOKENS } from '../../src/pwa/components/work/finding.js';
 
 const hasD2 = (() => { try { execFileSync('d2', ['--version']); return true; } catch { return false; } })();
 
@@ -26,19 +29,31 @@ describe('diagramRefusal', () => {
   });
 });
 
-describe('d2ThemeFor', () => {
-  it('maps every PWA theme to its own light theme, so none silently falls back', async () => {
-    // @ts-expect-error PWA modules are plain JS; tests import them at runtime.
-    const { VALID_THEMES } = await import('../../src/pwa/state/settings.js');
-    const ids = (VALID_THEMES as string[]).map((t) => d2ThemeFor(t, 'light'));
-    expect(new Set(ids).size).toBe(ids.length);
-    expect(d2ThemeFor('plasma', 'light')).toBe(102);
-    expect(d2ThemeFor('plasma', 'dark')).toBe(200);
+describe('theme palette', () => {
+  const tokens = [...new Set(Object.values(D2_SLOTS))];
+
+  it('asks the PWA for exactly the tokens the slots read', () => {
+    expect([...DIAGRAM_TOKENS].sort()).toEqual([...tokens].sort());
   });
 
-  it('falls back to halcyon for an unknown theme or a missing mode', () => {
-    expect(d2ThemeFor('nope', 'dark')).toBe(d2ThemeFor('halcyon', 'dark'));
-    expect(d2ThemeFor(null, null)).toBe(d2ThemeFor('halcyon', 'light'));
+  it('finds every token as #rrggbb in every theme + mode block of base.css', () => {
+    const css = readFileSync('src/pwa/css/base.css', 'utf8');
+    const blocks = [...css.matchAll(/\[data-theme="(\w+)"\]\[data-mode="(\w+)"\]\s*\{([^}]*)\}/g)];
+    expect(blocks.length).toBeGreaterThan(0);
+    for (const [, theme, mode, body] of blocks) {
+      for (const t of tokens) expect(body, `${theme}/${mode} --${t}`).toMatch(new RegExp(`--${t}:\\s*#[0-9a-fA-F]{6};`));
+    }
+  });
+
+  it('keeps only #rrggbb values, leaving the rest of the slots to the base theme', () => {
+    const o = themeOverrides((t) => ({ text: '#ffffff', bg: 'red"}}}\nx: @../s', accent: '#1fd5f9' } as Record<string, string>)[t] ?? null);
+    expect(o).toEqual({ N1: '#ffffff', B1: '#1fd5f9', B2: '#1fd5f9' });
+  });
+
+  it('bases only terminal on its own d2 theme', () => {
+    expect(d2ThemeFor('terminal')).toBe(300);
+    expect(d2ThemeFor('plasma')).toBe(0);
+    expect(d2ThemeFor(null)).toBe(0);
   });
 });
 
@@ -63,18 +78,17 @@ describe('checkPlanDiagram', () => {
     await expect(checkPlanDiagram({ diagram: 'a -> b: {\n' })).rejects.toThrow(/did not compile: .*-:1:\d+/);
   });
 
-  it.skipIf(!hasD2)('accepts a valid source and renders both modes', async () => {
+  it.skipIf(!hasD2)('accepts a valid source unchanged', async () => {
     const f = { diagram: 'a -> b: submit_plan' };
     await checkPlanDiagram(f);
     expect(f.diagram).toBe('a -> b: submit_plan');
-    const [light, dark] = await Promise.all([renderDiagram(f.diagram, d2ThemeFor('plasma', 'light')), renderDiagram(f.diagram, d2ThemeFor('plasma', 'dark'))]);
-    expect(light).toMatch(/^<svg/);
-    expect(light).not.toBe(dark);
   });
 
-  it.skipIf(!hasD2)('paints the canvas in the given bg, over the model\'s own override, and ignores a malformed one', async () => {
+  it.skipIf(!hasD2)('paints the slots in the given colours, over the model\'s own override', async () => {
     const src = 'vars: {d2-config: {theme-overrides: {N7: "#111111"}}}\na -> b';
-    expect(await renderDiagram(src, 100, '#faf7ef')).toContain('.fill-N7{fill:#faf7ef;}');
-    expect(await renderDiagram('a -> b', 100, 'red"}}}\nx: @../s')).toContain('.fill-N7{fill:#FFFFFF;}');
+    const svg = await renderDiagram(src, 0, { N7: '#faf7ef', N1: '#1c1814', B1: '#9a6300' });
+    expect(svg).toContain('.fill-N7{fill:#faf7ef;}');
+    expect(svg).toContain('.fill-N1{fill:#1c1814;}');
+    expect(svg).toContain('.stroke-B1{stroke:#9a6300;}');
   });
 });

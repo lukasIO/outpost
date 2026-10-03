@@ -39,7 +39,7 @@ describe('renderFinding', () => {
     document.documentElement.dataset.mode = 'dark';
     document.documentElement.style.setProperty('--bg', '#0a0610');
     const html = renderFinding({ ...finding, diagram: 'a -> b' }, 'Investigation', url);
-    expect(html).toContain(`src="${url}?theme=plasma&amp;mode=dark&amp;bg=%230a0610"`);
+    expect(html).toContain(`src="${url}?theme=plasma&amp;bg=%230a0610&amp;`);
     expect(renderFinding({ ...finding, diagram: 'a -> b' })).not.toContain('plan-diagram');
     expect(renderFinding(finding, 'Investigation', url)).not.toContain('plan-diagram');
   });

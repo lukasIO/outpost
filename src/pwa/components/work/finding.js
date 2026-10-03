@@ -31,13 +31,15 @@ function topic(key, title, html) {
     </details>`;
 }
 
-// The daemon picks the d2 theme from the PWA's own theme + mode and paints the canvas in its --bg,
-// all read off <html> at paint time.
+// The daemon paints the diagram in these tokens (D2_SLOTS in src/work/plan-diagram.ts), read off
+// <html> at paint time, so it matches whichever theme + mode is showing.
+export const DIAGRAM_TOKENS = ['bg', 'bg-elev', 'bg-elev-2', 'line', 'line-soft', 'text', 'text-mute', 'text-dim', 'accent', 'accent-2'];
 const diagramSrc = (url) => {
   const root = document.documentElement;
-  const { theme = '', mode = '' } = root.dataset;
-  const bg = getComputedStyle(root).getPropertyValue('--bg').trim();
-  return `${url}?theme=${encodeURIComponent(theme)}&mode=${encodeURIComponent(mode)}&bg=${encodeURIComponent(bg)}`;
+  const css = getComputedStyle(root);
+  const params = new URLSearchParams({ theme: root.dataset.theme ?? '' });
+  for (const t of DIAGRAM_TOKENS) params.set(t, css.getPropertyValue(`--${t}`).trim());
+  return `${url}?${params}`;
 };
 
 // A theme switch repaints nothing on this surface, so each diagram re-points itself instead.

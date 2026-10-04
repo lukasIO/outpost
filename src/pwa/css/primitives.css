@@ -366,26 +366,14 @@
 }
 .o-usage-pop-breakdown .val { text-align: right; font-variant-numeric: tabular-nums; color: var(--text); }
 
-/* Launch-queue line + control (launchQueueHtml): under the sidebar meter and atop both usage
-   popovers. Neutral while running; a --warn left rail marks a hold or a pause (DESIGN.md §10). */
-.o-usage-queue {
-  margin: 6px 0 2px; padding: 6px 8px 6px 10px;
-  border-left: 2px solid var(--line); border-radius: var(--r-control);
-  background: var(--bg-elev); font-size: 11px; line-height: 1.35;
-}
-.o-usage-queue-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--text); font-weight: 500; }
-.o-usage-queue[data-state="held"],
-.o-usage-queue[data-state="paused"] { border-left-color: var(--warn); }
-.o-usage-queue[data-state="running"] .o-usage-queue-head { color: var(--text-mute); font-weight: 400; }
-.o-usage-queue-actions { display: flex; gap: 4px; flex: none; }
-.o-usage-queue-why { margin-top: 2px; color: var(--text-mute); }
-.o-usage-queue-run {
-  display: inline-flex; align-items: center; gap: 4px;
-  flex: none; padding: 1px 8px; font: inherit; font-size: 11px; color: var(--accent);
+/* The mobile sheet's queue pause/resume, riding the Job slots block's label (slotBlockHtml). */
+.o-usage-pop-btn {
+  display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; vertical-align: middle;
+  padding: 1px 8px; font: inherit; font-size: 11px; font-weight: 400; color: var(--accent);
   background: none; border: 1px solid var(--line); border-radius: var(--r-control); cursor: pointer;
 }
-.o-usage-queue-run svg { width: 12px; height: 12px; }
-.o-usage-queue-run:hover { border-color: var(--accent); }
+.o-usage-pop-btn svg { width: 12px; height: 12px; }
+.o-usage-pop-btn:hover { border-color: var(--accent); }
 
 /* ───── Mobile geometry deltas ───────────────────────────────────────────
    Denser spacing per mobile-cockpit-tracked.html: rows stack as discrete

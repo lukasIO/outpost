@@ -872,7 +872,7 @@ export class WorkEngine {
   // Force-fires the specific parked launch for a job's orchestrator (no stepId) or a step
   // (stepId given), bypassing the headroom/slot gate. False if nothing was parked there.
   launchQueueSummary(): LaunchQueueSummary {
-    return this.opts.governor?.summary() ?? { paused: false, parked: 0, reason: null, opensAt: null };
+    return this.opts.governor?.summary() ?? { paused: false, parked: 0, reason: null, opensAt: null, active: 0, slots: 0 };
   }
 
   setLaunchQueuePaused(paused: boolean): void {

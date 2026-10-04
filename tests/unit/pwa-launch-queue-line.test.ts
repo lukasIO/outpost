@@ -1,43 +1,64 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
 // @ts-expect-error PWA modules are plain JS; tests import them at runtime.
-import { launchQueueParts, launchQueueHtml, queueActionFor, queueToggle, iconPause, iconPlay } from '../../src/pwa/utils/usage-bar.js';
+import { launchQueueParts, usagePopoverHtml, queueActionFor, queueToggle, queueTag, iconPause, iconPlay } from '../../src/pwa/utils/usage-bar.js';
 
-describe('launch-queue line under the usage meter', () => {
-  it('shows nothing before the daemon reports the queue, or while it just runs', () => {
+describe('launchQueueParts — what a hold means', () => {
+  it('is null before the daemon reports the queue, or while it just runs', () => {
     expect(launchQueueParts(null)).toBeNull();
-    expect(launchQueueHtml(undefined)).toBe('');
     expect(launchQueueParts({ paused: false, parked: 0, reason: null, opensAt: null })).toBeNull();
-    expect(launchQueueHtml({ paused: false, parked: 0, reason: null, opensAt: null })).toBe('');
   });
 
-  it('says how many a budget hold keeps, why and when it opens, with Run all and no toggle', () => {
-    const q = { paused: false, parked: 6, reason: 'Waiting — 7d on course for 140% by reset (60% used, 4d left)', opensAt: Date.now() + 4 * 3600_000 };
-    const p = launchQueueParts(q);
+  it('says how many a budget hold keeps, why and when it opens', () => {
+    const p = launchQueueParts({ paused: false, parked: 6, reason: 'Waiting — 7d on course for 140% by reset (60% used, 4d left)', opensAt: Date.now() + 4 * 3600_000 });
     expect(p.head).toBe('Held · 6 waiting');
     expect(p.why).toMatch(/^7d on course for 140% by reset \(60% used, 4d left\) · opens in [34]h/);
-    const html = launchQueueHtml(q);
-    expect(html).toContain('data-queue-action="run-all"');
-    expect(html).not.toContain('data-queue-action="pause"');
+  });
+});
+
+describe('usage popover — the Job slots block', () => {
+  const q = (o: object) => ({ paused: false, parked: 0, reason: null, opensAt: null, active: 0, slots: 2, ...o });
+  const host = (html: string) => { const d = document.createElement('div'); d.innerHTML = html; return d; };
+
+  it('replaces the queue line: a bar of running job turns against the slot cap', () => {
+    const d = host(usagePopoverHtml(undefined, q({ active: 1, slots: 2 })));
+    expect(d.querySelector('.o-usage-queue')).toBeNull();
+    const block = [...d.querySelectorAll('.o-usage-pop-block')].find((b) => b.textContent!.includes('Job slots'))!;
+    expect(block.querySelector('.o-usage-pop-v')!.textContent).toBe('1 of 2 running · 0 waiting');
+    expect((block.querySelector('.o-usage-pop-fill') as HTMLElement).style.width).toBe('50%');
   });
 
-  it('says it is paused, with Run all only while something waits', () => {
-    expect(launchQueueParts({ paused: true, parked: 0, reason: null, opensAt: null })).toMatchObject({ state: 'paused', runAll: false });
-    const p = launchQueueParts({ paused: true, parked: 2, reason: 'Job queue paused', opensAt: null });
-    expect(p).toMatchObject({ head: 'Job queue paused', why: '2 waiting · nothing starts on its own', runAll: true });
+  it('clamps the bar when user launches overfill the cap, and says the real count', () => {
+    const d = host(usagePopoverHtml(undefined, q({ active: 3, slots: 2, parked: 1 })));
+    const block = [...d.querySelectorAll('.o-usage-pop-block')].find((b) => b.textContent!.includes('Job slots'))!;
+    expect(block.textContent).toContain('3 of 2 running · 1 waiting');
+    expect((block.querySelector('.o-usage-pop-fill') as HTMLElement).style.width).toBe('100%');
   });
 
-  it('carries the toggle only where asked (the mobile sheet), even while the queue just runs', () => {
-    const html = launchQueueHtml({ paused: false, parked: 0, reason: null, opensAt: null }, { toggle: true });
-    expect(html).toContain('data-queue-action="pause"');
-    expect(html).toContain('<svg');
+  it('carries the pause/resume only where asked (the mobile sheet)', () => {
+    expect(usagePopoverHtml(undefined, q({}))).not.toContain('data-queue-action');
+    const d = host(usagePopoverHtml(undefined, q({ paused: true }), { queueToggle: true }));
+    expect(d.textContent).toContain('0 of 2 running · 0 waiting · paused');
+    expect(queueActionFor(d.querySelector('[data-queue-action] svg'))).toBe('resume');
   });
 
-  it('routes a click through the button\'s action attribute', () => {
-    const host = document.createElement('div');
-    host.innerHTML = launchQueueHtml({ paused: true, parked: 1, reason: 'Job queue paused', opensAt: null }, { toggle: true });
-    expect(queueActionFor(host.querySelector('[data-queue-action="resume"] svg'))).toBe('resume');
-    expect(queueActionFor(host.querySelector('.o-usage-queue-why'))).toBeNull();
+  it('is absent until the daemon reports its slots', () => {
+    expect(usagePopoverHtml(undefined, null)).not.toContain('Job slots');
+  });
+});
+
+describe('queueTag — the word beside the sidebar wordmark', () => {
+  it('says nothing while the queue just runs', () => {
+    expect(queueTag(null)).toBeNull();
+    expect(queueTag({ paused: false, parked: 0, reason: null, opensAt: null })).toBeNull();
+  });
+
+  it('reads paused for the user\'s pause, and held when the budget keeps launches back', () => {
+    expect(queueTag({ paused: true, parked: 2, reason: 'Job queue paused', opensAt: null }))
+      .toEqual({ text: 'paused', tone: 'paused', title: 'Job queue paused · 2 waiting' });
+    const held = queueTag({ paused: false, parked: 4, reason: 'Waiting — 7d on course for 95% by reset (50% used, 3d left)', opensAt: null });
+    expect(held).toMatchObject({ text: 'held', tone: 'held' });
+    expect(held!.title).toBe('Held · 4 waiting — 7d on course for 95% by reset (50% used, 3d left)');
   });
 });
 

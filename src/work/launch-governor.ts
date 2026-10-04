@@ -40,6 +40,10 @@ export interface LaunchGovernorDeps {
 export interface LaunchQueueSummary {
   paused: boolean;
   parked: number;
+  // Turns holding a slot right now, and the configured cap. `active` can exceed `slots`: a user
+  // launch and an `immediate` take a slot without waiting for one.
+  active: number;
+  slots: number;
   reason: string | null;
   opensAt: number | null;
 }
@@ -129,11 +133,13 @@ export class LaunchGovernor {
 
   summary(): LaunchQueueSummary {
     const paused = this.paused();
-    if (this.parked.size === 0) return { paused, parked: 0, reason: null, opensAt: null };
+    const occupancy = { active: this.active.size, slots: this.deps.getConcurrency() };
+    if (this.parked.size === 0) return { paused, parked: 0, reason: null, opensAt: null, ...occupancy };
     const slotsBusy = !this.slotOk();
     const snap = this.deps.getSnapshot();
     return {
       paused,
+      ...occupancy,
       parked: this.parked.size,
       reason: this.queuedReason(),
       // A pause has no clock to open on, and neither do busy slots (they free on a turn end).

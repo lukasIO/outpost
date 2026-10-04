@@ -4,7 +4,7 @@ import { work } from '../../state/work.js';
 import { sessions } from '../../state/sessions.js';
 import { schedulesStore, enabledScheduleCount } from '../../state/schedules.js';
 import { usage } from '../../state/usage.js';
-import { usageTier, clampPct, usagePopoverHtml, launchQueueHtml, queueActionFor, queueToggle } from '../../utils/usage-bar.js';
+import { usageTier, clampPct, usagePopoverHtml, queueActionFor, queueToggle, queueTag } from '../../utils/usage-bar.js';
 import { fmtRemaining } from '../../utils/formatting.js';
 import { setHtmlIfChanged } from '../../utils/keyed-rows.js';
 import { needsYou, isTerminalJob } from '../../vm/work-predicates.js';
@@ -52,7 +52,7 @@ export function mountSidebar(root) {
   root.setAttribute('role', 'navigation');
   root.setAttribute('aria-label', 'Sidebar');
   root.innerHTML = `
-    <div class="o-sidebar-brand"><span class="o-sidebar-dot" aria-hidden="true"></span><span class="o-sidebar-word">Outpost</span></div>
+    <div class="o-sidebar-brand"><span class="o-sidebar-dot" aria-hidden="true"></span><span class="o-sidebar-word">Outpost</span><span class="o-sidebar-queue" hidden></span></div>
     <nav class="o-sidebar-top" aria-label="Surfaces"></nav>
     <div class="o-sidebar-section">Library</div>
     <nav class="o-sidebar-lib" aria-label="Library"></nav>
@@ -78,7 +78,6 @@ export function mountSidebar(root) {
           <span class="o-usage-pct" id="sb-usage-7d-pct">&mdash;</span>
         </span>
       </button>
-      <div id="sb-usage-queue"></div>
     </div>
   `;
 
@@ -108,13 +107,19 @@ export function mountSidebar(root) {
   };
 
   const paintUsage = () => paintUsageWidget(root);
-  const queueEl = root.querySelector('#sb-usage-queue');
+  const tagEl = root.querySelector('.o-sidebar-queue');
   const queueBtn = root.querySelector('#sb-queue');
   // A nav item, not a surface: it carries data-queue-action, so the foot's delegated click below
   // handles it like the status line's own buttons, and applyActive never marks it current.
   const paintQueue = () => {
     const q = work.get().launchQueue;
-    setHtmlIfChanged(queueEl, launchQueueHtml(q));
+    // Paused, the brand dot takes --warn too — in the collapsed rail it is all that's left.
+    const tag = queueTag(q);
+    tagEl.hidden = !tag;
+    tagEl.textContent = tag?.text ?? '';
+    tagEl.title = tag?.title ?? '';
+    if (tag) tagEl.dataset.tone = tag.tone;
+    root.classList.toggle('is-queue-paused', !!q?.paused);
     queueBtn.hidden = !q;
     if (!q) return;
     const t = queueToggle(q);
@@ -128,8 +133,7 @@ export function mountSidebar(root) {
     badge.hidden = !q.parked;
     badge.textContent = q.parked ? String(q.parked > 99 ? '99+' : q.parked) : '';
   };
-  // Delegated from the foot, so the popover's copy of the button (mounted elsewhere) is covered
-  // by its own listener in installUsagePopover.
+  // Delegated from the foot for the queue nav item, which carries its action as data-queue-action.
   root.querySelector('.o-sidebar-foot').addEventListener('click', (e) => {
     const a = queueActionFor(e.target);
     if (a) void work.queueAction(a);
@@ -215,7 +219,6 @@ function installUsagePopover(root) {
     popEl.setAttribute('role', 'dialog');
     popEl.setAttribute('aria-label', 'Usage detail');
     popEl.innerHTML = usagePopoverHtml(usage.get().accountUsage, work.get().launchQueue);
-    popEl.addEventListener('click', (e) => { const a = queueActionFor(e.target); if (a) void work.queueAction(a); });
     host.appendChild(popEl);
     trigger.setAttribute('aria-expanded', 'true');
     setTimeout(() => {

@@ -51,7 +51,7 @@ function openUsageSheet() {
       <span class="sheet-title">Usage</span>
       <button class="sheet-close" type="button" aria-label="Close">✕</button>
     </div>
-    <div class="m-usage-sheet-body">${usagePopoverHtml(usage.get().accountUsage, work.get().launchQueue)}</div>
+    <div class="m-usage-sheet-body">${usagePopoverHtml(usage.get().accountUsage, work.get().launchQueue, { queueToggle: true })}</div>
   `;
   document.body.appendChild(backdrop);
   document.body.appendChild(sheet);
@@ -60,7 +60,7 @@ function openUsageSheet() {
   noteSheetOpen(close);
 
   const repaint = () => {
-    sheet.querySelector('.m-usage-sheet-body').innerHTML = usagePopoverHtml(usage.get().accountUsage, work.get().launchQueue);
+    sheet.querySelector('.m-usage-sheet-body').innerHTML = usagePopoverHtml(usage.get().accountUsage, work.get().launchQueue, { queueToggle: true });
   };
   const unsubUsage = usage.subscribe(repaint);
   const unsubWork = work.subscribe(repaint);

@@ -163,6 +163,14 @@ html[data-layout="desktop"] .o-sidebar-foot .o-usage {
   margin-top: 8px;
 }
 html[data-layout="desktop"] .o-sidebar.is-collapsed .o-usage { display: none; }
+/* The job queue's pause/resume sits in the foot as an ordinary nav item. `display: flex` above
+   would beat the [hidden] it carries before the daemon has reported the queue. Paused, the play
+   icon takes --warn like any state-carrying icon (DESIGN.md §9), so the collapsed rail still
+   shows it. The status line under the meter needs width the rail doesn't have; the item's
+   tooltip carries the state there instead. */
+html[data-layout="desktop"] .o-sidebar-item[hidden] { display: none; }
+html[data-layout="desktop"] .o-sidebar-item.is-paused .o-sidebar-icon { color: var(--warn); opacity: 1; }
+html[data-layout="desktop"] .o-sidebar.is-collapsed .o-usage-queue { display: none; }
 
 /* ── Frame: list · detail · context ──────────────────────────────────── */
 html[data-layout="desktop"] .o-frame {

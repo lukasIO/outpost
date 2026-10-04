@@ -4,14 +4,14 @@ import { work } from '../../state/work.js';
 import { sessions } from '../../state/sessions.js';
 import { schedulesStore, enabledScheduleCount } from '../../state/schedules.js';
 import { usage } from '../../state/usage.js';
-import { usageTier, clampPct, usagePopoverHtml, launchQueueHtml, queueActionFor } from '../../utils/usage-bar.js';
+import { usageTier, clampPct, usagePopoverHtml, launchQueueHtml, queueActionFor, queueToggle } from '../../utils/usage-bar.js';
 import { fmtRemaining } from '../../utils/formatting.js';
 import { setHtmlIfChanged } from '../../utils/keyed-rows.js';
 import { needsYou, isTerminalJob } from '../../vm/work-predicates.js';
 
 // Sidebar taxonomy per the redesign spec: Cockpit / Tracked / Sessions /
 // Schedules, a Library group (Skills / Runs history), Settings pinned at the
-// foot with the account-usage widget beneath it. Replaces activity-rail.js's
+// foot with the job queue's pause/resume beneath it, then the account-usage widget. Replaces activity-rail.js's
 // 4-item icon-only nav.
 //
 // Tier math + popover markup live in utils/usage-bar.js — the mobile header's
@@ -61,6 +61,11 @@ export function mountSidebar(root) {
         <span class="o-sidebar-icon">${iconSettings()}</span>
         <span class="o-sidebar-label">Settings</span>
       </button>
+      <button type="button" class="o-sidebar-item" id="sb-queue" data-queue-action="pause">
+        <span class="o-sidebar-icon"></span>
+        <span class="o-sidebar-label"></span>
+        <span class="o-sidebar-count o-badge" hidden></span>
+      </button>
       <button type="button" class="o-usage" id="sb-usage" aria-haspopup="true" aria-expanded="false" aria-label="Account usage">
         <span class="o-usage-row">
           <span class="o-usage-label" id="sb-usage-5h-lbl">5h</span>
@@ -104,7 +109,25 @@ export function mountSidebar(root) {
 
   const paintUsage = () => paintUsageWidget(root);
   const queueEl = root.querySelector('#sb-usage-queue');
-  const paintQueue = () => setHtmlIfChanged(queueEl, launchQueueHtml(work.get().launchQueue));
+  const queueBtn = root.querySelector('#sb-queue');
+  // A nav item, not a surface: it carries data-queue-action, so the foot's delegated click below
+  // handles it like the status line's own buttons, and applyActive never marks it current.
+  const paintQueue = () => {
+    const q = work.get().launchQueue;
+    setHtmlIfChanged(queueEl, launchQueueHtml(q));
+    queueBtn.hidden = !q;
+    if (!q) return;
+    const t = queueToggle(q);
+    queueBtn.dataset.queueAction = t.action;
+    queueBtn.title = t.title;
+    queueBtn.setAttribute('aria-label', t.title);
+    queueBtn.classList.toggle('is-paused', t.paused);
+    setHtmlIfChanged(queueBtn.querySelector('.o-sidebar-icon'), t.icon);
+    queueBtn.querySelector('.o-sidebar-label').textContent = t.label;
+    const badge = queueBtn.querySelector('.o-sidebar-count');
+    badge.hidden = !q.parked;
+    badge.textContent = q.parked ? String(q.parked > 99 ? '99+' : q.parked) : '';
+  };
   // Delegated from the foot, so the popover's copy of the button (mounted elsewhere) is covered
   // by its own listener in installUsagePopover.
   root.querySelector('.o-sidebar-foot').addEventListener('click', (e) => {

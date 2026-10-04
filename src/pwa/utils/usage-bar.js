@@ -77,11 +77,11 @@ function breakdownHtml(breakdown) {
 
 // Shared between the desktop sidebar-foot popover and the mobile header's usage
 // sheet — same content, different container chrome around it.
-// The job launch queue as one line under the meter, and its top-level control. A hold stops every
-// queued job at once, so it belongs beside the usage that causes it, not only as a label on each
-// job. Three states, each with the action that answers it: running (Pause), held by the budget or
-// busy slots (Run all, Pause), paused by the user (Resume, plus Run all while anything waits).
-// Null before the daemon has reported the queue at all.
+// The job launch queue. Its pause/resume is a control of its own (queueToggle): a sidebar nav
+// item on desktop, a button in the mobile usage sheet. The line under the meter carries only
+// what a hold means — how many wait, why, when it opens, and Run all — so it shows only while
+// the queue is held by the budget or busy slots, or paused. Null when there is nothing to say,
+// including before the daemon has reported the queue at all.
 export function launchQueueParts(q) {
   if (!q) return null;
   const waiting = q.parked ? `${q.parked} waiting` : null;
@@ -89,27 +89,48 @@ export function launchQueueParts(q) {
     return {
       state: 'paused', head: 'Job queue paused',
       why: waiting ? `${waiting} · nothing starts on its own` : 'Nothing starts on its own',
-      actions: [['resume', 'Resume'], ...(q.parked ? [['run-all', 'Run all']] : [])],
+      runAll: !!q.parked,
     };
   }
-  if (!q.parked) return { state: 'running', head: 'Job queue running', why: null, actions: [['pause', 'Pause']] };
+  if (!q.parked) return null;
   const why = String(q.reason ?? '').replace(/^Waiting — /, '');
   return {
     state: 'held', head: `Held · ${waiting}`,
     why: q.opensAt ? `${why} · opens ${fmtResetAt(q.opensAt / 1000)}` : why,
-    actions: [['run-all', 'Run all'], ['pause', 'Pause']],
+    runAll: true,
   };
 }
 
-export function launchQueueHtml(q) {
+// Same stroke style as the sidebar's own icons (shell/sidebar.js svg()), so the toggle sits in
+// that nav as one of them.
+function icon(path) {
+  return `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
+}
+export const iconPause = () => icon('<rect x="6.5" y="5" width="3.5" height="14" rx="1"/><rect x="14" y="5" width="3.5" height="14" rx="1"/>');
+export const iconPlay = () => icon('<path d="M8 5.5v13l10.5-6.5z"/>');
+
+// What the pause/resume control shows: pause while running, play while paused. `title` is the
+// whole state in one line, for the collapsed sidebar where only the icon is left.
+export function queueToggle(q) {
+  const paused = !!q?.paused;
+  const waiting = q?.parked ? ` · ${q.parked} waiting` : '';
+  return paused
+    ? { action: 'resume', label: 'Resume queue', icon: iconPlay(), paused, title: `Job queue paused${waiting} — resume it` }
+    : { action: 'pause', label: 'Pause queue', icon: iconPause(), paused, title: `Job queue running${waiting} — pause it` };
+}
+
+export function launchQueueHtml(q, { toggle = false } = {}) {
   const p = launchQueueParts(q);
-  if (!p) return '';
-  const buttons = p.actions.map(([a, label]) =>
-    `<button type="button" class="o-usage-queue-run" data-queue-action="${a}">${label}</button>`).join('');
+  const t = toggle && q ? queueToggle(q) : null;
+  if (!p && !t) return '';
+  const buttons = [
+    ...(t ? [`<button type="button" class="o-usage-queue-run" data-queue-action="${t.action}" aria-label="${t.label}">${t.icon}<span>${t.paused ? 'Resume' : 'Pause'}</span></button>`] : []),
+    ...(p?.runAll ? ['<button type="button" class="o-usage-queue-run" data-queue-action="run-all">Run all</button>'] : []),
+  ].join('');
   return `
-    <div class="o-usage-queue" data-state="${p.state}">
-      <div class="o-usage-queue-head"><span>${escapeHtml(p.head)}</span><span class="o-usage-queue-actions">${buttons}</span></div>
-      ${p.why ? `<div class="o-usage-queue-why">${escapeHtml(p.why)}</div>` : ''}
+    <div class="o-usage-queue" data-state="${p?.state ?? 'running'}">
+      <div class="o-usage-queue-head"><span>${escapeHtml(p?.head ?? 'Job queue running')}</span><span class="o-usage-queue-actions">${buttons}</span></div>
+      ${p?.why ? `<div class="o-usage-queue-why">${escapeHtml(p.why)}</div>` : ''}
     </div>`;
 }
 
@@ -119,10 +140,10 @@ export function queueActionFor(target) {
   return target?.closest?.('[data-queue-action]')?.dataset.queueAction ?? null;
 }
 
-export function usagePopoverHtml(au, queue) {
+export function usagePopoverHtml(au, queue, { queueToggle: withToggle = false } = {}) {
   return `
     <div class="o-usage-pop-hdr"><h4>Account usage</h4></div>
-    ${launchQueueHtml(queue)}
+    ${launchQueueHtml(queue, { toggle: withToggle })}
     ${windowBlockHtml('5-hour window', au?.five_hour)}
     ${windowBlockHtml('Weekly window', au?.seven_day)}
     ${breakdownHtml(au?.breakdown)}

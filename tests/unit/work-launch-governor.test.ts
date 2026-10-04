@@ -232,7 +232,7 @@ describe('LaunchGovernor — app-wide queue summary', () => {
 
   it('is empty while nothing waits', () => {
     const { gov } = harness();
-    expect(gov.summary()).toEqual({ parked: 0, reason: null, opensAt: null });
+    expect(gov.summary()).toEqual({ paused: false, parked: 0, reason: null, opensAt: null });
   });
 
   it('counts what the budget holds, says why, and when it opens', () => {
@@ -267,5 +267,54 @@ describe('LaunchGovernor — app-wide queue summary', () => {
     const before = changeCount();
     gov.onUsageSnapshot();
     expect(changeCount()).toBe(before + 1);
+  });
+});
+
+describe('LaunchGovernor — the user pause', () => {
+  function pausable(snapshot: TokenUsageSnapshot = healthy) {
+    let paused = false;
+    const fired: string[] = [];
+    const gov = new LaunchGovernor({
+      getSnapshot: () => snapshot, getConcurrency: () => 4, now: () => NOW,
+      isPaused: () => paused, setPaused: (p) => { paused = p; },
+    });
+    const sub = (key: string, priority: LaunchRequest['priority'], extra: Partial<LaunchRequest> = {}) =>
+      gov.submit(req({ key, sessionId: key, priority, run: () => { fired.push(key); return true; }, ...extra }));
+    return { gov, fired, sub, isPaused: () => paused };
+  }
+
+  it('holds the daemon\'s own starts, queued and immediate alike, but never an explicit click', () => {
+    const { gov, fired, sub, isPaused } = pausable();
+    gov.setPaused(true);
+    expect(isPaused()).toBe(true);
+    sub('q', 'queued');
+    sub('i', 'immediate');
+    sub('u', 'user');
+    expect(fired).toEqual(['u']);
+    expect(gov.summary()).toMatchObject({ paused: true, parked: 2, reason: 'Job queue paused', opensAt: null });
+    expect(gov.describe('q')).toEqual({ state: 'queued', reason: 'Job queue paused' });
+  });
+
+  it('resuming drains what the pause held: immediates first and past the budget, queued only within it', () => {
+    const overBudget: TokenUsageSnapshot = {
+      five_hour: { used_percentage: 10, resets_at: NOW_S + 3600 },
+      seven_day: { used_percentage: 60, resets_at: NOW_S + 4 * 86400 },
+    };
+    const { gov, fired, sub } = pausable(overBudget);
+    gov.setPaused(true);
+    sub('q', 'queued', { enqueuedAt: 1 });
+    sub('i', 'immediate', { enqueuedAt: 2 });
+    gov.setPaused(false);
+    expect(fired).toEqual(['i']);
+    expect(gov.summary()).toMatchObject({ paused: false, parked: 1 });
+  });
+
+  it('Run all still fires everything while paused', () => {
+    const { gov, fired, sub } = pausable();
+    gov.setPaused(true);
+    sub('a', 'queued');
+    sub('b', 'immediate');
+    expect(gov.forceFireAll()).toBe(2);
+    expect(fired.sort()).toEqual(['a', 'b']);
   });
 });

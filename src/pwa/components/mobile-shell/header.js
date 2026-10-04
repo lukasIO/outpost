@@ -8,7 +8,7 @@
 
 import { usage } from '../../state/usage.js';
 import { work } from '../../state/work.js';
-import { usageTier, clampPct, usagePopoverHtml } from '../../utils/usage-bar.js';
+import { usageTier, clampPct, usagePopoverHtml, queueActionFor } from '../../utils/usage-bar.js';
 import { fmtRemaining } from '../../utils/formatting.js';
 import { noteSheetOpen, noteSheetClose, pinSheetBelowHeader, makeSheetDismissible } from '../sheet-utils.js';
 import { escapeHtml } from '../../util.js';
@@ -64,7 +64,7 @@ function openUsageSheet() {
   };
   const unsubUsage = usage.subscribe(repaint);
   const unsubWork = work.subscribe(repaint);
-  sheet.addEventListener('click', (e) => { if (e.target.closest('[data-run-all-queued]')) void work.runAllQueued(); });
+  sheet.addEventListener('click', (e) => { const a = queueActionFor(e.target); if (a) void work.queueAction(a); });
 
   function close() {
     backdrop.classList.remove('open');

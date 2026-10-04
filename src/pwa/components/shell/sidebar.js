@@ -4,7 +4,7 @@ import { work } from '../../state/work.js';
 import { sessions } from '../../state/sessions.js';
 import { schedulesStore, enabledScheduleCount } from '../../state/schedules.js';
 import { usage } from '../../state/usage.js';
-import { usageTier, clampPct, usagePopoverHtml, launchQueueHtml } from '../../utils/usage-bar.js';
+import { usageTier, clampPct, usagePopoverHtml, launchQueueHtml, queueActionFor } from '../../utils/usage-bar.js';
 import { fmtRemaining } from '../../utils/formatting.js';
 import { setHtmlIfChanged } from '../../utils/keyed-rows.js';
 import { needsYou, isTerminalJob } from '../../vm/work-predicates.js';
@@ -108,7 +108,8 @@ export function mountSidebar(root) {
   // Delegated from the foot, so the popover's copy of the button (mounted elsewhere) is covered
   // by its own listener in installUsagePopover.
   root.querySelector('.o-sidebar-foot').addEventListener('click', (e) => {
-    if (e.target.closest('[data-run-all-queued]')) void work.runAllQueued();
+    const a = queueActionFor(e.target);
+    if (a) void work.queueAction(a);
   });
 
   applyActive();
@@ -191,7 +192,7 @@ function installUsagePopover(root) {
     popEl.setAttribute('role', 'dialog');
     popEl.setAttribute('aria-label', 'Usage detail');
     popEl.innerHTML = usagePopoverHtml(usage.get().accountUsage, work.get().launchQueue);
-    popEl.addEventListener('click', (e) => { if (e.target.closest('[data-run-all-queued]')) void work.runAllQueued(); });
+    popEl.addEventListener('click', (e) => { const a = queueActionFor(e.target); if (a) void work.queueAction(a); });
     host.appendChild(popEl);
     trigger.setAttribute('aria-expanded', 'true');
     setTimeout(() => {

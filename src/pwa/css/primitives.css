@@ -380,9 +380,11 @@
 .o-usage-queue-actions { display: flex; gap: 4px; flex: none; }
 .o-usage-queue-why { margin-top: 2px; color: var(--text-mute); }
 .o-usage-queue-run {
+  display: inline-flex; align-items: center; gap: 4px;
   flex: none; padding: 1px 8px; font: inherit; font-size: 11px; color: var(--accent);
   background: none; border: 1px solid var(--line); border-radius: var(--r-control); cursor: pointer;
 }
+.o-usage-queue-run svg { width: 12px; height: 12px; }
 .o-usage-queue-run:hover { border-color: var(--accent); }
 
 /* ───── Mobile geometry deltas ───────────────────────────────────────────

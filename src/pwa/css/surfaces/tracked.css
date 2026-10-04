@@ -7,6 +7,9 @@
 
 /* ── List column ──────────────────────────────────────────────────────── */
 .tracked-row-body { min-width: 0; }
+.tracked-status[data-status="running"] { animation: tracked-pulse var(--pulse) ease-in-out infinite; }
+@keyframes tracked-pulse { 50% { opacity: 0.4; } }
+@media (prefers-reduced-motion: reduce) { .tracked-status[data-status="running"] { animation: none; } }
 .lr-empty {
   padding: 24px 16px;
   text-align: center;

@@ -44,7 +44,6 @@ html[data-layout="desktop"] .o-frame-list .o-row-group .o-row.lr-row:last-child 
 html[data-layout="desktop"] .o-frame-list .o-row-group .o-row.lr-row:only-child { border-radius: var(--r-container); }
 html[data-layout="desktop"] .o-frame-list .o-row.lr-row.is-open {
   background: var(--accent-soft);
-  border-color: var(--accent);
 }
 /* list-filter.js's ⌘F filter sets [hidden] on non-matching rows — author
    `display: grid` above otherwise beats the UA [hidden]{display:none} rule

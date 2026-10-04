@@ -232,7 +232,7 @@ describe('LaunchGovernor — app-wide queue summary', () => {
 
   it('is empty while nothing waits', () => {
     const { gov } = harness();
-    expect(gov.summary()).toEqual({ paused: false, parked: 0, reason: null, opensAt: null });
+    expect(gov.summary()).toEqual({ paused: false, parked: 0, reason: null, opensAt: null, active: 0, slots: 1 });
   });
 
   it('counts what the budget holds, says why, and when it opens', () => {
@@ -250,6 +250,15 @@ describe('LaunchGovernor — app-wide queue summary', () => {
     gov.submit(makeReq({ key: 'j1#a', sessionId: 'a' }));
     gov.submit(makeReq({ key: 'j2#b', sessionId: 'b', jobId: 'j2' }));
     expect(gov.summary()).toMatchObject({ parked: 1, reason: '1/1 slots busy', opensAt: null });
+  });
+
+  it('reports slot occupancy against the cap', () => {
+    const { gov, makeReq } = harness(healthy, 3);
+    gov.submit(makeReq({ key: 'j1#a', sessionId: 'a' }));
+    gov.submit(makeReq({ key: 'j2#b', sessionId: 'b', jobId: 'j2' }));
+    expect(gov.summary()).toMatchObject({ active: 2, slots: 3, parked: 0 });
+    gov.turnEnded('a');
+    expect(gov.summary()).toMatchObject({ active: 1, slots: 3 });
   });
 
   it('forceFireAll launches everything parked', () => {

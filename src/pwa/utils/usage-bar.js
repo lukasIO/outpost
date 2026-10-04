@@ -77,11 +77,9 @@ function breakdownHtml(breakdown) {
 
 // Shared between the desktop sidebar-foot popover and the mobile header's usage
 // sheet — same content, different container chrome around it.
-// The job launch queue. Its pause/resume is a control of its own (queueToggle): a sidebar nav
-// item on desktop, a button in the mobile usage sheet. The line under the meter carries only
-// what a hold means — how many wait, why, when it opens, and Run all — so it shows only while
-// the queue is held by the budget or busy slots, or paused. Null when there is nothing to say,
-// including before the daemon has reported the queue at all.
+// What a hold on the job launch queue means — how many wait, why, when it opens — for the
+// wordmark tag's tooltip (queueTag). Null while it just runs, or before the daemon has reported
+// the queue at all.
 export function launchQueueParts(q) {
   if (!q) return null;
   const waiting = q.parked ? `${q.parked} waiting` : null;
@@ -99,6 +97,16 @@ export function launchQueueParts(q) {
     why: q.opensAt ? `${why} · opens ${fmtResetAt(q.opensAt / 1000)}` : why,
     runAll: true,
   };
+}
+
+// The sidebar brand row's one-word queue state, beside "Outpost": `paused` is the user's pause,
+// `held` the budget or busy slots keeping launches back. The tooltip carries what the line under
+// the meter used to; the full line with Run all stays in the usage popover. Null while it just runs.
+export function queueTag(q) {
+  if (!q) return null;
+  if (q.paused) return { text: 'paused', tone: 'paused', title: `Job queue paused${q.parked ? ` · ${q.parked} waiting` : ''}` };
+  const p = launchQueueParts(q);
+  return p ? { text: 'held', tone: 'held', title: `${p.head} — ${p.why}` } : null;
 }
 
 // Same stroke style as the sidebar's own icons (shell/sidebar.js svg()), so the toggle sits in
@@ -119,33 +127,42 @@ export function queueToggle(q) {
     : { action: 'pause', label: 'Pause queue', icon: iconPause(), paused, title: `Job queue running${waiting} — pause it` };
 }
 
-export function launchQueueHtml(q, { toggle = false } = {}) {
-  const p = launchQueueParts(q);
-  const t = toggle && q ? queueToggle(q) : null;
-  if (!p && !t) return '';
-  const buttons = [
-    ...(t ? [`<button type="button" class="o-usage-queue-run" data-queue-action="${t.action}" aria-label="${t.label}">${t.icon}<span>${t.paused ? 'Resume' : 'Pause'}</span></button>`] : []),
-    ...(p?.runAll ? ['<button type="button" class="o-usage-queue-run" data-queue-action="run-all">Run all</button>'] : []),
-  ].join('');
-  return `
-    <div class="o-usage-queue" data-state="${p?.state ?? 'running'}">
-      <div class="o-usage-queue-head"><span>${escapeHtml(p?.head ?? 'Job queue running')}</span><span class="o-usage-queue-actions">${buttons}</span></div>
-      ${p?.why ? `<div class="o-usage-queue-why">${escapeHtml(p.why)}</div>` : ''}
-    </div>`;
-}
-
-// The action a click inside the queue line asked for, if any — every host (sidebar, popover,
-// mobile sheet) delegates through this so the markup's attribute lives in one file.
+// The queue action a click asked for, if any — the sidebar nav item and the mobile sheet's toggle
+// both delegate through this, so the markup's attribute lives in one file.
 export function queueActionFor(target) {
   return target?.closest?.('[data-queue-action]')?.dataset.queueAction ?? null;
+}
+
+// The job queue's slots, in the same block shape as the two token windows: how many job turns run
+// in parallel against the configured cap. On mobile, which has no sidebar nav item for it, the
+// queue's pause/resume rides this block's header. `active` can exceed `slots` (a user launch takes
+// one without waiting), so the bar clamps and the text says the real count.
+function slotBlockHtml(q, withToggle) {
+  if (!q || !Number.isFinite(q.slots) || q.slots < 1) return '';
+  const active = q.active ?? 0;
+  const pct = clampPct((active / q.slots) * 100);
+  // Waiting is always said, zero included: it is the other half of what the bar is about.
+  const state = ` · ${q.parked ?? 0} waiting${q.paused ? ' · paused' : ''}`;
+  const t = withToggle ? queueToggle(q) : null;
+  const toggle = t
+    ? `<button type="button" class="o-usage-pop-btn" data-queue-action="${t.action}" aria-label="${t.label}">${t.icon}<span>${t.paused ? 'Resume' : 'Pause'}</span></button>`
+    : '';
+  return `
+    <div class="o-usage-pop-block">
+      <div class="o-usage-pop-row">
+        <span class="o-usage-pop-k">Job slots${toggle}</span>
+        <span class="o-usage-pop-v">${active} of ${q.slots} running${escapeHtml(state)}</span>
+      </div>
+      <div class="o-usage-pop-bar"><span class="o-usage-pop-fill" style="width:${pct}%"></span></div>
+    </div>`;
 }
 
 export function usagePopoverHtml(au, queue, { queueToggle: withToggle = false } = {}) {
   return `
     <div class="o-usage-pop-hdr"><h4>Account usage</h4></div>
-    ${launchQueueHtml(queue, { toggle: withToggle })}
     ${windowBlockHtml('5-hour window', au?.five_hour)}
     ${windowBlockHtml('Weekly window', au?.seven_day)}
+    ${slotBlockHtml(queue, withToggle)}
     ${breakdownHtml(au?.breakdown)}
   `;
 }

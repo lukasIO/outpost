@@ -1,27 +1,14 @@
 {
   "core": {
     "description": "Envelope-I/O baseline for every action: cat, jq, the mcp__outpost__ submit tools, ToolSearch. Implicit for every runner:claude action. The cat/jq rules name the verb only — which FILE they may open is decided structurally by readArgsAllowed (allowlist.ts), which confines them to $OUTPOST_ENVELOPE, the session's own worktree, and any granted Read: path. That bar is skipped entirely for an action holding a whole-tool Read grant (i.e. anything inheriting `read`), so it binds exactly the actions that never asked to read files. Grants no network access — an action that POSTs back to the daemon carries its own anchored curl rule in its allowlist.json.",
-    "alwaysAllow": [
-      "ToolSearch"
-    ],
-    "alwaysAllowBashPatterns": [
-      "^cat ",
-      "^jq "
-    ],
-    "alwaysAllowMcpPatterns": [
-      "^mcp__outpost__"
-    ],
+    "alwaysAllow": ["ToolSearch"],
+    "alwaysAllowBashPatterns": ["^cat ", "^jq "],
+    "alwaysAllowMcpPatterns": ["^mcp__outpost__"],
     "alwaysAllowPathPatterns": []
   },
   "read": {
     "description": "Local file reads and git-read-only commands (Read/Glob/Grep/LS, ls/cat/rg/find, git status/log/diff/show/blame/branch/fetch/submodule status, sed restricted to a line-range print, from a file or from stdin).",
-    "alwaysAllow": [
-      "Read",
-      "Glob",
-      "Grep",
-      "LS",
-      "NotebookRead"
-    ],
+    "alwaysAllow": ["Read", "Glob", "Grep", "LS", "NotebookRead"],
     "alwaysAllowBashPatterns": [
       "^(ls|head|tail|file|wc|stat|du|pwd|whoami|date|printenv|which|type|echo|printf|tree|sort|uniq|cut|comm|diff|cmp|column|basename|dirname|realpath|nl|xxd|od)(\\s|$)",
       "^git (-C [^-\\s]\\S* )?(status|log|diff|show|blame|branch|remote -v|remote get-url|config --get|fetch|rev-parse|merge-base|ls-files|ls-tree|cat-file|describe|shortlog|show-ref|grep|tag -l|stash list|worktree list|submodule status|submodule summary)(\\s|$)",
@@ -65,8 +52,8 @@
       "^mage$",
       "^mage proto$",
       "^npx tsc --noEmit$",
-      "^npm (test|run|install|ci)(\\s|$)",
-      "^(yarn|pnpm) (install|run|test|add|remove)(\\s|$)",
+      "^npm (test|run|install|ci|lint|format)(\\s|$)",
+      "^(yarn|pnpm) (install|run|test|add|remove|lint|format)(\\s|$)",
       "^go (test|build|vet)(\\s|$)",
       "^go get(\\s|$)",
       "^go mod (tidy|download)(\\s|$)",

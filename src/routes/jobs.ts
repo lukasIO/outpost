@@ -123,6 +123,22 @@ export function registerJobsRoutes(server: Server, deps: JobsRoutesDeps): void {
     res.end(JSON.stringify({ jobs, lastLinearSyncAt: jobQueue.lastLinearSyncAt ?? null, launchQueue: engine.launchQueueSummary() }));
   });
 
+  // The usage meter's Pause / Resume. Paused, the daemon starts nothing on its own — only an
+  // explicit click (Launch, replan, Run all, a step's Launch now) still fires. Turns already
+  // running finish. Resuming drains whatever the pause held.
+  server.route('POST', '/api/work/launch-queue/pause', (_req, res) => {
+    engine.setLaunchQueuePaused(true);
+    res.statusCode = 200;
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify(engine.launchQueueSummary()));
+  });
+  server.route('POST', '/api/work/launch-queue/resume', (_req, res) => {
+    engine.setLaunchQueuePaused(false);
+    res.statusCode = 200;
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify(engine.launchQueueSummary()));
+  });
+
   // The usage meter's "Run all": every parked launch, past the budget gate and the slot cap —
   // the queue-wide version of a step's own "Launch now".
   server.route('POST', '/api/work/launch-queue/run-all', (_req, res) => {

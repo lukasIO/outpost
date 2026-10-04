@@ -45,6 +45,7 @@ export const workApi = {
   tickNow(id)                      { return request(`${jobPath(id)}/tick`, { method: 'POST', body: '{}' }); },
   rerunLatest(id)                  { return request(`${jobPath(id)}/rerun-latest`, { method: 'POST', body: '{}' }); },
   resumeStalled(id)                { return request(`${jobPath(id)}/resume-stalled`, { method: 'POST', body: '{}' }); },
+  runAllQueued()                   { return request('/api/work/launch-queue/run-all', { method: 'POST', body: '{}' }); },
   resetJob(id)                     { return request(`${jobPath(id)}/reset`, { method: 'POST', body: '{}' }); },
   syncNow()                        { return request('/sync', { method: 'POST', body: '{}' }); },
   syncJob(id)                      { return request(`${jobPath(id)}/sync`, { method: 'POST', body: '{}' }); },

@@ -120,6 +120,7 @@ export function mountSidebar(root) {
     tagEl.title = tag?.title ?? '';
     if (tag) tagEl.dataset.tone = tag.tone;
     root.classList.toggle('is-queue-paused', !!q?.paused);
+    paintFavicon(root);
     queueBtn.hidden = !q;
     if (!q) return;
     const t = queueToggle(q);
@@ -152,12 +153,37 @@ export function mountSidebar(root) {
   const unsubSchedules = schedulesStore.subscribe(paintCounts);
   const unsubUsage = usage.subscribe(paintUsage);
   const teardownPopover = installUsagePopover(root);
+  // Theme, light/dark, and a system-mode flip all land as one of these two attributes.
+  const themeObs = new MutationObserver(() => paintFavicon(root));
+  themeObs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-mode'] });
   schedulesStore.load();
 
   return () => {
     unsubNav(); unsubApprovals(); unsubWork(); unsubSessions(); unsubSchedules();
-    unsubUsage(); teardownPopover();
+    unsubUsage(); teardownPopover(); themeObs.disconnect();
   };
+}
+
+// The tab's favicon is the brand dot: same gradient, same --warn when the queue is paused.
+// Colours come from the dot's own computed vars so every theme and mode follows for free.
+function paintFavicon(root) {
+  const dot = root.querySelector('.o-sidebar-dot');
+  if (!dot) return;
+  const cs = getComputedStyle(dot);
+  const v = (name) => cs.getPropertyValue(name).trim();
+  const paused = root.classList.contains('is-queue-paused');
+  const a = paused ? v('--warn') : v('--accent');
+  const b = paused ? a : (v('--accent-2') || a);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs><circle cx="8" cy="8" r="7" fill="url(#g)"/></svg>`;
+  const href = `data:image/svg+xml,${encodeURIComponent(svg)}`;
+  let link = document.querySelector('link[rel="icon"]');
+  if (!link) {
+    link = document.createElement('link');
+    link.rel = 'icon';
+    link.type = 'image/svg+xml';
+    document.head.appendChild(link);
+  }
+  if (link.href !== href) link.href = href;
 }
 
 // ── Account-usage widget: two compact bars (5h / weekly) + a detail popover.

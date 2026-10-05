@@ -139,6 +139,16 @@ export function registerJobsRoutes(server: Server, deps: JobsRoutesDeps): void {
     res.end(JSON.stringify(engine.launchQueueSummary()));
   });
 
+  // The usage popover's "Ignore for 1h" on the window holding the queue, and its undo. Body
+  // `{ignore: false}` restores the gate; anything else opens it for an hour.
+  server.route('POST', '/api/work/launch-queue/ignore-budget', async (req, res) => {
+    const body = await readJsonBody<{ ignore?: unknown }>(req);
+    engine.ignoreLaunchBudget(body?.ignore === false ? 0 : 60 * 60_000);
+    res.statusCode = 200;
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify(engine.launchQueueSummary()));
+  });
+
   // The usage meter's "Run all": every parked launch, past the budget gate and the slot cap —
   // the queue-wide version of a step's own "Launch now".
   server.route('POST', '/api/work/launch-queue/run-all', (_req, res) => {

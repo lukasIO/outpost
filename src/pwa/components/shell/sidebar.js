@@ -4,7 +4,7 @@ import { work } from '../../state/work.js';
 import { sessions } from '../../state/sessions.js';
 import { schedulesStore, enabledScheduleCount } from '../../state/schedules.js';
 import { usage } from '../../state/usage.js';
-import { usageTier, clampPct, usagePopoverHtml, queueActionFor, queueToggle, queueTag } from '../../utils/usage-bar.js';
+import { usageTier, clampPct, usagePopoverHtml, queueActionFor, queueToggle, queueTag, heldWindow } from '../../utils/usage-bar.js';
 import { fmtRemaining } from '../../utils/formatting.js';
 import { setHtmlIfChanged } from '../../utils/keyed-rows.js';
 import { needsYou, isTerminalJob } from '../../vm/work-predicates.js';
@@ -148,7 +148,7 @@ export function mountSidebar(root) {
 
   const unsubNav = nav.subscribe(() => { applyActive(); applyCollapsed(); });
   const unsubApprovals = approvals.subscribe(paintCounts);
-  const unsubWork = work.subscribe(() => { paintCounts(); paintQueue(); });
+  const unsubWork = work.subscribe(() => { paintCounts(); paintQueue(); paintUsage(); });
   const unsubSessions = sessions.subscribe(paintCounts);
   const unsubSchedules = schedulesStore.subscribe(paintCounts);
   const unsubUsage = usage.subscribe(paintUsage);
@@ -190,12 +190,15 @@ function paintFavicon(root) {
 // Tier math + popover markup are shared via utils/usage-bar.js.
 function paintUsageWidget(root) {
   const au = usage.get().accountUsage;
-  paintBar(root, '5h', au?.five_hour?.used_percentage, au?.five_hour?.resets_at, '5h');
-  paintBar(root, '7d', au?.seven_day?.used_percentage, au?.seven_day?.resets_at, '7d');
+  const held = heldWindow(work.get().launchQueue);
+  paintBar(root, '5h', au?.five_hour?.used_percentage, au?.five_hour?.resets_at, '5h', held === 'five_hour');
+  paintBar(root, '7d', au?.seven_day?.used_percentage, au?.seven_day?.resets_at, '7d', held === 'seven_day');
 }
 
-function paintBar(root, key, pct, resetsAt, staticLabel) {
+// `held`: this window is what's keeping the job queue back — the row takes the paused --warn.
+function paintBar(root, key, pct, resetsAt, staticLabel, held) {
   const fill = root.querySelector(`#sb-usage-${key}-fill`);
+  fill?.closest('.o-usage-row')?.classList.toggle('is-held', held);
   const pctEl = root.querySelector(`#sb-usage-${key}-pct`);
   const lblEl = root.querySelector(`#sb-usage-${key}-lbl`);
   // Label shows time-until-reset when known, falling back to the window's static label.
@@ -245,6 +248,7 @@ function installUsagePopover(root) {
     popEl.setAttribute('role', 'dialog');
     popEl.setAttribute('aria-label', 'Usage detail');
     popEl.innerHTML = usagePopoverHtml(usage.get().accountUsage, work.get().launchQueue);
+    popEl.addEventListener('click', (e) => { const a = queueActionFor(e.target); if (a) void work.queueAction(a); });
     host.appendChild(popEl);
     trigger.setAttribute('aria-expanded', 'true');
     setTimeout(() => {

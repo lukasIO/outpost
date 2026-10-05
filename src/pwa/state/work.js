@@ -140,7 +140,10 @@ export const work = {
   // One entry point for the queue line's buttons (utils/usage-bar.js queueActionFor). The WS
   // work_launch_changed refetch repaints the line; the immediate reload just saves the wait.
   async queueAction(action) {
-    const fn = { 'run-all': workApi.runAllQueued, pause: workApi.pauseQueue, resume: workApi.resumeQueue }[action];
+    const fn = {
+      'run-all': workApi.runAllQueued, pause: workApi.pauseQueue, resume: workApi.resumeQueue,
+      'ignore-budget': () => workApi.ignoreQueueBudget(true), 'restore-budget': () => workApi.ignoreQueueBudget(false),
+    }[action];
     if (!fn) return;
     await call(() => fn());
     await this.loadAll();

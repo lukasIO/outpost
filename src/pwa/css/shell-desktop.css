@@ -61,6 +61,10 @@ html[data-layout="desktop"] .o-usage-fill {
 html[data-layout="desktop"] .o-usage-fill.warn { background: var(--warn); }
 html[data-layout="desktop"] .o-usage-fill.hot  { background: var(--danger); }
 html[data-layout="desktop"] .o-usage-pct { text-align: right; font-weight: 500; color: var(--text); }
+/* The window holding the job queue (heldWindow): the queue's paused --warn, over any tier. */
+html[data-layout="desktop"] .o-usage-row.is-held .o-usage-fill { background: var(--warn); }
+html[data-layout="desktop"] .o-usage-row.is-held .o-usage-label,
+html[data-layout="desktop"] .o-usage-row.is-held .o-usage-pct { color: var(--warn); }
 
 /* Anchored to the bottom-left of .o-shell-body (which is position:relative),
    opening upward from the sidebar-foot usage trigger. */

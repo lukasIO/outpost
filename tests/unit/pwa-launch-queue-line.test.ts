@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
 // @ts-expect-error PWA modules are plain JS; tests import them at runtime.
-import { launchQueueParts, usagePopoverHtml, queueActionFor, queueToggle, queueTag, iconPause, iconPlay } from '../../src/pwa/utils/usage-bar.js';
+import { launchQueueParts, usagePopoverHtml, queueActionFor, queueToggle, queueTag, iconPause, iconPlay, heldWindow } from '../../src/pwa/utils/usage-bar.js';
 
 describe('launchQueueParts — what a hold means', () => {
   it('is null before the daemon reports the queue, or while it just runs', () => {
@@ -62,6 +62,25 @@ describe('queueTag — the word beside the sidebar wordmark', () => {
   });
 });
 
+describe('usagePopoverHtml — the window holding the queue', () => {
+  const au = { five_hour: { used_percentage: 20, resets_at: 2e9 }, seven_day: { used_percentage: 60, resets_at: 2e9 } };
+  const q = { paused: false, parked: 2, reason: null, opensAt: null, blocker: 'seven_day' };
+  it('tints the blocking window and offers to ignore it, nothing on the other', () => {
+    const html = usagePopoverHtml(au, q);
+    expect(heldWindow(q)).toBe('seven_day');
+    expect(html.match(/is-blocking/g)).toHaveLength(1);
+    expect(html).toMatch(/is-blocking has-tip"[\s\S]*Weekly window[\s\S]*o-usage-pop-tip[\s\S]*data-queue-action="ignore-budget">Ignore limit for 1h/);
+    expect(html).not.toContain('holding the queue');
+  });
+  it('offers Restore instead while ignored, and nothing is held', () => {
+    const ignored = { ...q, ignoreBudgetUntil: Date.now() + 3_600_000 };
+    expect(heldWindow(ignored)).toBeNull();
+    const html = usagePopoverHtml(au, ignored);
+    expect(html).not.toContain('is-blocking');
+    expect(html).toMatch(/has-tip"[\s\S]*Ignored until [\s\S]*data-queue-action="restore-budget">Restore/);
+  });
+});
+
 describe('queueToggle — the sidebar nav item', () => {
   it('is a pause icon while running and a play icon while paused, with the whole state as its title', () => {
     const running = queueToggle({ paused: false, parked: 0, reason: null, opensAt: null });
@@ -83,6 +102,7 @@ describe('queue control requests', () => {
     await workApi.runAllQueued();
     await workApi.pauseQueue();
     await workApi.resumeQueue();
-    expect(urls).toEqual(['/api/work/launch-queue/run-all', '/api/work/launch-queue/pause', '/api/work/launch-queue/resume']);
+    await workApi.ignoreQueueBudget(true);
+    expect(urls).toEqual(['/api/work/launch-queue/run-all', '/api/work/launch-queue/pause', '/api/work/launch-queue/resume', '/api/work/launch-queue/ignore-budget']);
   });
 });

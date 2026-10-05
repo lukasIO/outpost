@@ -359,6 +359,8 @@
 .o-usage-pop-fill { display: block; height: 100%; background: var(--accent); border-radius: var(--r-pill); }
 .o-usage-pop-fill.warn { background: var(--warn); }
 .o-usage-pop-fill.hot  { background: var(--danger); }
+.o-usage-pop-fill.paused { background: var(--warn); }
+.o-usage-pop-block.is-blocking .o-usage-pop-v { color: var(--warn); }
 .o-usage-pop-meta { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-dim); }
 .o-usage-pop-breakdown {
   display: grid; grid-template-columns: 1fr auto; gap: 4px 12px;
@@ -374,6 +376,27 @@
 }
 .o-usage-pop-btn svg { width: 12px; height: 12px; }
 .o-usage-pop-btn:hover { border-color: var(--accent); }
+/* The blocking window's override (blockerTipHtml): an info bubble floating beside the block,
+   outside the popover, so it costs the popover no room. The wrapper's transparent left padding
+   is the hover bridge from block to bubble. A touch screen has no room beside the sheet and no
+   hover, so there it sits above the block and opens on tap (the block is focusable). */
+.o-usage-pop-block.has-tip { position: relative; outline: none; }
+.o-usage-pop-tip {
+  position: absolute; left: 100%; top: 0; z-index: 1;
+  padding-left: 22px; visibility: hidden;
+}
+.o-usage-pop-block.has-tip:hover .o-usage-pop-tip,
+.o-usage-pop-block.has-tip:focus-within .o-usage-pop-tip { visibility: visible; }
+.o-usage-pop-tip-body {
+  display: flex; align-items: center; gap: 8px; white-space: nowrap;
+  padding: 6px 8px; font-size: 11px; color: var(--text-mute);
+  background: var(--bg-elev); border: 1px solid var(--line);
+  border-radius: var(--r-control); box-shadow: var(--shadow-pop);
+}
+.o-usage-pop-tip-body .o-usage-pop-btn { margin-left: 0; }
+@media (hover: none) {
+  .o-usage-pop-tip { left: auto; right: 0; top: auto; bottom: 100%; padding: 0 0 4px; }
+}
 
 /* ───── Mobile geometry deltas ───────────────────────────────────────────
    Denser spacing per mobile-cockpit-tracked.html: rows stack as discrete

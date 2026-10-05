@@ -46,7 +46,16 @@ export interface LaunchQueueSummary {
   slots: number;
   reason: string | null;
   opensAt: number | null;
+  // Which usage window the budget gate is closed on, whether or not anything is parked behind it —
+  // the meter tints that window's bar. Still reported while the user ignores it, so the popover
+  // can say what is being ignored.
+  blocker: UsageWindow | null;
+  // Until when (epoch ms) the user told the queue to launch past the budget gate. Null when not.
+  ignoreBudgetUntil: number | null;
 }
+
+export type UsageWindow = 'five_hour' | 'seven_day';
+const BLOCKER: Partial<Record<string, UsageWindow>> = { 'five-hour-ceiling': 'five_hour', 'over-budget': 'seven_day' };
 
 export type LaunchState =
   | { state: 'running' }
@@ -57,6 +66,10 @@ export class LaunchGovernor {
   private parked = new Map<string, LaunchRequest>();
   private active = new Map<string, string>();
   private evaluating = false;
+  // In memory on purpose: an override is an hour long, and a daemon bounce re-closing the gate
+  // early is the safe side to err on.
+  private ignoreBudgetUntil = 0;
+  private ignoreTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(private deps: LaunchGovernorDeps) {}
 
@@ -64,11 +77,20 @@ export class LaunchGovernor {
     return this.deps.now?.() ?? Date.now();
   }
 
-  private headroom(): { ok: boolean; reason: string } {
+  private budget(): { ok: boolean; reason: string; blocker: UsageWindow | null } {
     const snap = this.deps.getSnapshot();
-    if (!snap) return { ok: true, reason: 'No usage data — headroom gate off' };
+    if (!snap) return { ok: true, reason: 'No usage data — headroom gate off', blocker: null };
     const d = evaluateJobBudget(snap, this.now());
-    return { ok: d.launch || d.code === 'no-data', reason: d.reason };
+    return { ok: d.launch || d.code === 'no-data', reason: d.reason, blocker: d.launch ? null : BLOCKER[d.code] ?? null };
+  }
+
+  private ignoringBudget(): boolean {
+    return this.now() < this.ignoreBudgetUntil;
+  }
+
+  private headroom(): { ok: boolean; reason: string } {
+    const b = this.budget();
+    return b.ok || !this.ignoringBudget() ? b : { ok: true, reason: 'Usage limit ignored' };
   }
 
   private slotOk(): boolean {
@@ -90,6 +112,20 @@ export class LaunchGovernor {
     this.deps.setPaused?.(paused);
     this.emit();
     if (!paused) this.drain();
+  }
+
+  // The meter's "Ignore for 1h": the budget gate stays open until `ms` from now; 0 restores it.
+  // Slots and a pause still hold — this is about usage only.
+  ignoreBudget(ms: number): void {
+    clearTimeout(this.ignoreTimer);
+    this.ignoreBudgetUntil = ms > 0 ? this.now() + ms : 0;
+    // Expiry re-closes the gate, which fires nothing, so only the meter needs telling.
+    if (ms > 0) {
+      this.ignoreTimer = setTimeout(() => this.emit(), ms);
+      this.ignoreTimer.unref?.();
+    }
+    this.emit();
+    if (ms > 0) this.drain();
   }
 
   private fire(req: LaunchRequest): void {
@@ -133,7 +169,12 @@ export class LaunchGovernor {
 
   summary(): LaunchQueueSummary {
     const paused = this.paused();
-    const occupancy = { active: this.active.size, slots: this.deps.getConcurrency() };
+    const occupancy = {
+      active: this.active.size,
+      slots: this.deps.getConcurrency(),
+      blocker: this.budget().blocker,
+      ignoreBudgetUntil: this.ignoringBudget() ? this.ignoreBudgetUntil : null,
+    };
     if (this.parked.size === 0) return { paused, parked: 0, reason: null, opensAt: null, ...occupancy };
     const slotsBusy = !this.slotOk();
     const snap = this.deps.getSnapshot();

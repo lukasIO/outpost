@@ -232,7 +232,35 @@ describe('LaunchGovernor — app-wide queue summary', () => {
 
   it('is empty while nothing waits', () => {
     const { gov } = harness();
-    expect(gov.summary()).toEqual({ paused: false, parked: 0, reason: null, opensAt: null, active: 0, slots: 1 });
+    expect(gov.summary()).toEqual({ paused: false, parked: 0, reason: null, opensAt: null, active: 0, slots: 1, blocker: null, ignoreBudgetUntil: null });
+  });
+
+  it('names the window the budget gate is closed on, and ignoring it lets work through for an hour', () => {
+    let now = NOW;
+    let snapshot: TokenUsageSnapshot = overBudget;
+    const fired: string[] = [];
+    const gov = new LaunchGovernor({ getSnapshot: () => snapshot, getConcurrency: () => 4, now: () => now });
+    const submit = (id: string) => gov.submit(req({ key: `j#${id}`, sessionId: id, run: () => { fired.push(id); return true; } }));
+    expect(gov.summary().blocker).toBe('seven_day');
+    snapshot = hot5h;
+    expect(gov.summary().blocker).toBe('five_hour');
+    submit('a');
+    expect(fired).toEqual([]);
+
+    gov.ignoreBudget(60 * 60_000);
+    expect(fired).toEqual(['a']);
+    // Still named while ignored, so the popover can say what's being ignored.
+    expect(gov.summary()).toMatchObject({ blocker: 'five_hour', ignoreBudgetUntil: NOW + 60 * 60_000 });
+    submit('b');
+    expect(fired).toEqual(['a', 'b']);
+
+    now = NOW + 60 * 60_000;
+    expect(gov.summary().ignoreBudgetUntil).toBeNull();
+    submit('c');
+    expect(fired).toEqual(['a', 'b']);
+    gov.ignoreBudget(60 * 60_000);
+    gov.ignoreBudget(0);
+    expect(gov.summary().ignoreBudgetUntil).toBeNull();
   });
 
   it('counts what the budget holds, says why, and when it opens', () => {

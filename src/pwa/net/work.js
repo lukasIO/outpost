@@ -48,6 +48,7 @@ export const workApi = {
   runAllQueued()                   { return request('/launch-queue/run-all', { method: 'POST', body: '{}' }); },
   pauseQueue()                     { return request('/launch-queue/pause', { method: 'POST', body: '{}' }); },
   resumeQueue()                    { return request('/launch-queue/resume', { method: 'POST', body: '{}' }); },
+  ignoreQueueBudget(ignore)        { return request('/launch-queue/ignore-budget', { method: 'POST', body: JSON.stringify({ ignore }) }); },
   resetJob(id)                     { return request(`${jobPath(id)}/reset`, { method: 'POST', body: '{}' }); },
   syncNow()                        { return request('/sync', { method: 'POST', body: '{}' }); },
   syncJob(id)                      { return request(`${jobPath(id)}/sync`, { method: 'POST', body: '{}' }); },

@@ -43,18 +43,42 @@ function escapeHtml(s) {
   ));
 }
 
-function windowBlockHtml(label, win) {
+// The usage window holding the job queue right now ('five_hour' | 'seven_day'), or null. A window
+// the user is ignoring holds nothing. Both meters (sidebar, mobile header) tint this one's row.
+export function heldWindow(q) {
+  return q?.blocker && !q.ignoreBudgetUntil ? q.blocker : null;
+}
+
+// The blocking window's override, as an info bubble that floats beside its block on hover (or on
+// focus, which is how a touch screen gets it) and takes no room in the popover: "Ignore for 1h"
+// while the window holds the queue, the end time + "Restore" while it's being ignored.
+function blockerTipHtml(key, q) {
+  if (!q || q.blocker !== key) return '';
+  const ignored = !!q.ignoreBudgetUntil;
+  const note = ignored ? `<span>Ignored until ${escapeHtml(fmtClock(q.ignoreBudgetUntil))}</span>` : '';
+  const [action, label] = ignored ? ['restore-budget', 'Restore'] : ['ignore-budget', 'Ignore limit for 1h'];
+  return `
+      <div class="o-usage-pop-tip" role="tooltip"><div class="o-usage-pop-tip-body">${note}<button type="button" class="o-usage-pop-btn" data-queue-action="${action}">${label}</button></div></div>`;
+}
+
+function fmtClock(ms) {
+  return new Date(ms).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+}
+
+function windowBlockHtml(label, win, key, q) {
   const pct = win?.used_percentage;
   const hasPct = typeof pct === 'number' && Number.isFinite(pct);
   const clamped = hasPct ? clampPct(pct) : 0;
-  const tier = hasPct ? usageTier(clamped) : 'ok';
+  const held = heldWindow(q) === key;
+  const tip = blockerTipHtml(key, q);
+  const tier = held ? 'paused' : hasPct ? usageTier(clamped) : 'ok';
   return `
-    <div class="o-usage-pop-block">
+    <div class="o-usage-pop-block${held ? ' is-blocking' : ''}${tip ? ' has-tip' : ''}"${tip ? ' tabindex="0"' : ''}>
       <div class="o-usage-pop-row">
         <span class="o-usage-pop-k">${escapeHtml(label)}</span>
         <span class="o-usage-pop-v">${hasPct ? `${Math.round(clamped)}% used · ${escapeHtml(fmtResetAt(win.resets_at))}` : 'no data yet'}</span>
       </div>
-      <div class="o-usage-pop-bar"><span class="o-usage-pop-fill${tier === 'ok' ? '' : ` ${tier}`}" style="width:${clamped}%"></span></div>
+      <div class="o-usage-pop-bar"><span class="o-usage-pop-fill${tier === 'ok' ? '' : ` ${tier}`}" style="width:${clamped}%"></span></div>${tip}
     </div>`;
 }
 
@@ -160,8 +184,8 @@ function slotBlockHtml(q, withToggle) {
 export function usagePopoverHtml(au, queue, { queueToggle: withToggle = false } = {}) {
   return `
     <div class="o-usage-pop-hdr"><h4>Account usage</h4></div>
-    ${windowBlockHtml('5-hour window', au?.five_hour)}
-    ${windowBlockHtml('Weekly window', au?.seven_day)}
+    ${windowBlockHtml('5-hour window', au?.five_hour, 'five_hour', queue)}
+    ${windowBlockHtml('Weekly window', au?.seven_day, 'seven_day', queue)}
     ${slotBlockHtml(queue, withToggle)}
     ${breakdownHtml(au?.breakdown)}
   `;

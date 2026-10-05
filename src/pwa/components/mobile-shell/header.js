@@ -8,30 +8,32 @@
 
 import { usage } from '../../state/usage.js';
 import { work } from '../../state/work.js';
-import { usageTier, clampPct, usagePopoverHtml, queueActionFor } from '../../utils/usage-bar.js';
+import { usageTier, clampPct, usagePopoverHtml, queueActionFor, heldWindow } from '../../utils/usage-bar.js';
 import { fmtRemaining } from '../../utils/formatting.js';
 import { noteSheetOpen, noteSheetClose, pinSheetBelowHeader, makeSheetDismissible } from '../sheet-utils.js';
 import { escapeHtml } from '../../util.js';
 
-function usageBarRowHtml(staticLabel, pct, resetsAt) {
+// `held`: this window is what's keeping the job queue back — the row takes the paused --warn.
+function usageBarRowHtml(staticLabel, pct, resetsAt, held) {
   const hasPct = typeof pct === 'number' && Number.isFinite(pct);
   const clamped = hasPct ? clampPct(pct) : 0;
   const tier = hasPct ? usageTier(clamped) : null;
   // Label shows time-until-reset when known, falling back to the window's static label.
   const label = fmtRemaining(resetsAt) ?? staticLabel;
   return `
-    <div class="m-usage-row">
+    <div class="m-usage-row${held ? ' is-held' : ''}">
       <span class="m-usage-lbl">${escapeHtml(label)}</span>
       <div class="m-usage-bar"><div class="m-usage-fill${tier && tier !== 'ok' ? ` ${tier}` : ''}" style="width:${clamped}%"></div></div>
       <span class="m-usage-pct">${hasPct ? Math.round(clamped) : '—'}</span>
     </div>`;
 }
 
-function usageWidgetHtml(au) {
+function usageWidgetHtml(au, q) {
+  const held = heldWindow(q);
   return `
     <button type="button" class="m-usage" id="m-usage-trigger" aria-haspopup="dialog" aria-label="Account usage">
-      ${usageBarRowHtml('5h', au?.five_hour?.used_percentage, au?.five_hour?.resets_at)}
-      ${usageBarRowHtml('7d', au?.seven_day?.used_percentage, au?.seven_day?.resets_at)}
+      ${usageBarRowHtml('5h', au?.five_hour?.used_percentage, au?.five_hour?.resets_at, held === 'five_hour')}
+      ${usageBarRowHtml('7d', au?.seven_day?.used_percentage, au?.seven_day?.resets_at, held === 'seven_day')}
     </button>`;
 }
 
@@ -86,10 +88,17 @@ function openUsageSheet() {
 // setHeader() can unsubscribe on the next repaint. Shared by list-root
 // (Cockpit) and list (the other primary tabs) so usage rides every main header.
 function mountUsageSlot(slot) {
-  const paintUsage = () => { slot.innerHTML = usageWidgetHtml(usage.get().accountUsage); };
+  // The work store changes on every job update; repaint only when the widget actually moved.
+  let last = '';
+  const paintUsage = () => {
+    const html = usageWidgetHtml(usage.get().accountUsage, work.get().launchQueue);
+    if (html !== last) slot.innerHTML = last = html;
+  };
   paintUsage();
   slot.addEventListener('click', (e) => { if (e.target.closest('#m-usage-trigger')) openUsageSheet(); });
-  return usage.subscribe(paintUsage);
+  const unsubUsage = usage.subscribe(paintUsage);
+  const unsubWork = work.subscribe(paintUsage);
+  return () => { unsubUsage(); unsubWork(); };
 }
 
 // ── list-root: Cockpit's home shape ─────────────────────────────────────
